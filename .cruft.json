@@ -1,0 +1,27 @@
+{
+  "template": "https://github.com/FAIRmat-NFDI/cookiecutter-nomad-plugin",
+  "commit": "236339a6c4ff722376e22e89be9767ce9e865116",
+  "checkout": null,
+  "context": {
+    "cookiecutter": {
+      "full_name": "Malte Grunert",
+      "email": "malte.grunert@tu-ilmenau.de",
+      "github_username": "magr4826",
+      "plugin_name": "nomad-parser-yambospectra",
+      "module_name": "nomad_parser_yambospectra",
+      "short_description": "Nomad example template",
+      "version": "0.1.0",
+      "license": "Apache Software License 2.0",
+      "include_schema_package": true,
+      "include_normalizer": false,
+      "include_parser": true,
+      "include_app": false,
+      "include_example_uploads": false,
+      "_copy_without_render": [
+        "*.html"
+      ],
+      "_template": "https://github.com/FAIRmat-NFDI/cookiecutter-nomad-plugin"
+    }
+  },
+  "directory": null
+}
