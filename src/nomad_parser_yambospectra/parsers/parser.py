@@ -29,6 +29,7 @@ from nomad.datamodel.metainfo.workflow import Workflow
 
 import numpy as np
 import os
+import glob
 
 configuration = config.get_plugin_entry_point(
     'nomad_parser_yambospectra.parsers:parser_entry_point'
@@ -94,7 +95,7 @@ class NewParser(MatchingParser):
         # store the input variables in the schema
         rpa = RPA_Spectra()
         rpa.damping = my_eps.get("Damping") * ureg("eV")
-        rpa.energy_range = my_eps.get("EneryRange")
+        rpa.energy_range = my_eps.get("EnergyRange")
         rpa.band_range = my_eps.get("BandRange")
         rpa.direction = my_eps.get("Direction")
         rpa.numberOfFreqs = my_eps.get("NumberOfFreqs")
@@ -124,7 +125,7 @@ class NewParser(MatchingParser):
         # as we have low verbosity and no xml file, we can only get the k-points from
         # the input file
         # check if theres a QE input file in the same folder
-        all_files = os.listdir()
+        all_files = glob.glob("*")
         QE_input = None
         for filename in all_files:
             if "pw" in filename and "in" in filename:
