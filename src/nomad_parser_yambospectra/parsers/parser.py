@@ -13,7 +13,8 @@ if TYPE_CHECKING:
 from nomad.config import config
 from nomad.parsing.parser import MatchingParser
 from nomad_simulations.schema_packages.general import Simulation, Program
-from nomad_simulations.schema_packages.numerical_settings import KMesh
+from nomad_simulations.schema_packages.numerical_settings import KMesh, Smearing
+from nomad_simulations.schema_packages.basis_set import PlaneWaveBasisSet
 from nomad_simulations.schema_packages.variables import Variables, Frequency
 from nomad_simulations.schema_packages.model_system import AtomicCell, ModelSystem
 from nomad_parser_yambospectra.schema_packages.properties import Permittivity_OneAxis, myOutputs
@@ -93,10 +94,8 @@ class QEOutputParser(TextParser):
     # This is a selfbuilt output parser
     def init_quantities(self):
         self._quantities = [Quantity("lattice", r' *a\(\d\) \= \( *([\-\.\d]+) *([\-\.\d]+) *([\-\.\d]+)', repeats = True),
-                            Quantity("alat", r"\(alat\)\s*=\s*(\d+.\d+)")]
-
-
-
+                            Quantity("alat", r"\(alat\)\s*=\s*(\d+.\d+)"),
+                            Quantity("pwcutoff", r"\s*kinetic-energy cutoff\s*=\s*(\d+.\d+)")]
 
 
 
@@ -132,7 +131,7 @@ class NewParser(MatchingParser):
         rpa_settings.band_range = my_eps.get("BandRange")
         rpa_settings.FFTVecs = my_eps.get("FFTVecs")
         rpa_settings.GVecs = my_eps.get("GVec_Cutoff") * 1e-3* ureg("rydberg")
-        rpa.numerical_settings.append(rpa_settings)
+        rpa.numerical_settings.append(rpa_settings)     # this makes the normalizer crash
         simulation.model_method.append(rpa)
 
         # parse the output properties
@@ -152,28 +151,25 @@ class NewParser(MatchingParser):
         simulation.outputs.append(output)
 
         # this concludes the YAMBO part
-        # we get the model system and the ground-state parameters from the QE-out-parser
+        # we get the model system and the ground-state parameters from the QE files
 
-        # as we have low verbosity and no xml file, we can only get the k-points from
-        # the input file
-        # check if theres a QE input file in the same folder
-
-        #all_files = glob.glob("*")
-
-        QE_input = get_files("*.in", filepath=mainfile)
+        QE_input = get_files("pw_*.in", filepath=mainfile)
         if len(QE_input) == 0:
             print("No QE input file!! Cannot setup ModelSystem & DFT properties.")
             return
-        my_qein = QEInputParser(mainfile=QE_input[0])
+        my_qein = QEInputParser()
+        my_qein.mainfile = QE_input[0]
 
-        QE_output = get_files("*.out", filepath=mainfile)
+        QE_output = get_files("pw_*.out", filepath=mainfile)
         if len(QE_output) == 0:
             print("No QE output file!! Cannot setup ModelSystem & DFT properties.")
             return
-        my_qeout = QEInputParser(mainfile=QE_output[0])
 
-        kmesh = KMesh()
-        kmesh.all_points = np.array(my_qein.get("kpoints")).reshape([-1,4])[:,:3]
+        my_qeout = QEOutputParser()
+        my_qeout.mainfile=QE_output[0]
+
+
+        # setup the model system
 
         lattice_vecs = np.array(my_qeout.get("lattice"))* my_qeout.get("alat")
         atoms_states = [AtomsState(chemical_symbol=element) for element in my_qein.get("atom_types")]
@@ -185,5 +181,11 @@ class NewParser(MatchingParser):
         modelsys.cell.append(cell)
         simulation.model_system.append(modelsys)
 
-        print(simulation)
-        print(simulation.model_system)
+        # setup the DFT infos
+        dft = DFT()
+        kmesh = KMesh()
+        kmesh.all_points = np.array(my_qein.get("kpoints")).reshape([-1,4])[:,:3]
+        basis = PlaneWaveBasisSet()
+        basis.cutoff_energy = my_qeout.get("pwcutoff")*ureg("rydbergs")
+
+        dft.numerical_settings.append(kmesh)
