@@ -23,7 +23,7 @@ from nomad.units import ureg
 
 from nomad_simulations.schema_packages.model_method import ModelMethod, DFT
 
-from nomad_parser_yambospectra.schema_packages.schema_package import RPA_Spectra
+from nomad_parser_yambospectra.schema_packages.schema_package import RPA_Spectra, RPA_NumSettings
 
 from nomad.datamodel.metainfo.workflow import Workflow
 
@@ -35,6 +35,35 @@ configuration = config.get_plugin_entry_point(
     'nomad_parser_yambospectra.parsers:parser_entry_point'
 )
 
+
+def get_files(pattern: str, filepath: str, stripname: str = '', deep: bool = True):
+    """Get files following the `pattern` with respect to the file `stripname` (usually this
+    being the mainfile of the given parser) up to / down from the `filepath` (`deep=True` going
+    down, `deep=False` up)
+
+    Args:
+        pattern (str): targeted pattern to be found
+        filepath (str): filepath to start the search
+        stripname (str, optional): name with respect to which do the search. Defaults to ''.
+        deep (bool, optional): boolean setting the path in the folders to scan (down or up). Defaults to down=True.
+
+    Returns:
+        list: List of found files.
+    """
+    for _ in range(10):
+        filenames = glob.glob(f'{os.path.dirname(filepath)}/{pattern}')
+        pattern = os.path.join('**' if deep else '..', pattern)
+        if filenames:
+            break
+
+    if len(filenames) > 1:
+        # filter files that match
+        suffix = os.path.basename(filepath).strip(stripname)
+        matches = [f for f in filenames if suffix in f]
+        filenames = matches if matches else filenames
+
+    filenames = [f for f in filenames if os.access(f, os.F_OK)]
+    return filenames
 
 
 class epsilonInputParser(TextParser):
@@ -96,11 +125,14 @@ class NewParser(MatchingParser):
         rpa = RPA_Spectra()
         rpa.damping = my_eps.get("Damping") * ureg("eV")
         rpa.energy_range = my_eps.get("EnergyRange")
-        rpa.band_range = my_eps.get("BandRange")
         rpa.direction = my_eps.get("Direction")
         rpa.numberOfFreqs = my_eps.get("NumberOfFreqs")
-        rpa.FFTVecs = my_eps.get("FFTVecs")
-        rpa.GVecs = my_eps.get("GVec_Cutoff") * 1e-3* ureg("rydberg")
+
+        rpa_settings = RPA_NumSettings
+        rpa_settings.band_range = my_eps.get("BandRange")
+        rpa_settings.FFTVecs = my_eps.get("FFTVecs")
+        rpa_settings.GVecs = my_eps.get("GVec_Cutoff") * 1e-3* ureg("rydberg")
+        rpa.numerical_settings.append(rpa_settings)
         simulation.model_method.append(rpa)
 
         # parse the output properties
@@ -125,35 +157,25 @@ class NewParser(MatchingParser):
         # as we have low verbosity and no xml file, we can only get the k-points from
         # the input file
         # check if theres a QE input file in the same folder
-        all_files = glob.glob("*")
-        QE_input = None
-        for filename in all_files:
-            if "pw" in filename and "in" in filename:
-                QE_input = filename
-                break
 
-        if QE_input is not None:
-            my_qein = QEInputParser(mainfile=QE_input)
-            kmesh = KMesh()
-            kmesh.all_points = np.array(my_qein.get("kpoints")).reshape([-1,4])[:,:3]
+        #all_files = glob.glob("*")
 
-        else:
+        QE_input = get_files("*.in", filepath=mainfile)
+        if len(QE_input) == 0:
             print("No QE input file!! Cannot setup ModelSystem & DFT properties.")
             return
+        my_qein = QEInputParser(mainfile=QE_input[0])
 
-        for filename in all_files:
-            if "pw" in filename and "out" in filename:
-                QE_output = filename
-                break
-
-        if QE_output is not None:
-            my_qeout = QEOutputParser(mainfile=QE_output)
-        else:
-            print("No QE output file! Cannot setup ModelSystem & DFT properties.")
+        QE_output = get_files("*.out", filepath=mainfile)
+        if len(QE_output) == 0:
+            print("No QE output file!! Cannot setup ModelSystem & DFT properties.")
             return
+        my_qeout = QEInputParser(mainfile=QE_output[0])
+
+        kmesh = KMesh()
+        kmesh.all_points = np.array(my_qein.get("kpoints")).reshape([-1,4])[:,:3]
 
         lattice_vecs = np.array(my_qeout.get("lattice"))* my_qeout.get("alat")
-
         atoms_states = [AtomsState(chemical_symbol=element) for element in my_qein.get("atom_types")]
         atomic_pos_crystal = my_qein.get("atom_pos")
         atomic_pos_cart = np.array([np.matmul(crystal_pos,lattice_vecs) for crystal_pos in atomic_pos_crystal])* ureg("bohr")
