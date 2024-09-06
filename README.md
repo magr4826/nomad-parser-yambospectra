@@ -1,5 +1,15 @@
 # THIS DOES NOT WORK YET
 
+Parse output spectra (frequency-dependent permittivities) for IPA/RPA calculations in YAMBO.
+Theoretically, it should work for TDDFT as well, but it does not read in infos about the Kernel.
+Only groundstate info from QuantumEspresso (QE) is supported right now.
+If e.g. ABINIT was used or QE files are not there, the parser will still parse the spectra,
+but not parse any groundstate data.
+
+As the QE parser is not updated yet, this parser uses a workaround to get the groundstate
+properties, which only really works for the way our group has defined the files.
+Once the QE parser is fully working, one should separate this out into a workflow.
+
 # nomad-parser-yambospectra
 
 Nomad example template

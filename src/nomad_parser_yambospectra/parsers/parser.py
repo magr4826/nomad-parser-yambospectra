@@ -127,11 +127,11 @@ class YAMBO_SpectraParser(MatchingParser):
         rpa.direction = my_eps.get("Direction")
         rpa.numberOfFreqs = my_eps.get("NumberOfFreqs")
 
-        rpa_settings = RPA_NumSettings
+        rpa_settings = RPA_NumSettings()
         rpa_settings.band_range = my_eps.get("BandRange")
         rpa_settings.FFTVecs = my_eps.get("FFTVecs")
         rpa_settings.GVecs = my_eps.get("GVec_Cutoff") * 1e-3* ureg("rydberg")
-        rpa.numerical_settings.append(rpa_settings)     # this makes the normalizer crash
+        rpa.numerical_settings.append(rpa_settings)
         simulation.model_method.append(rpa)
 
         # parse the output properties
@@ -186,6 +186,7 @@ class YAMBO_SpectraParser(MatchingParser):
         basis = PlaneWaveBasisSet()
         basis.cutoff_energy = my_qeout.get("pwcutoff")*ureg("rydbergs")
 
+        # this is extremely scuffed, the QE parser will in the future take care of this
         if my_qeout.get("xc_func") == "PBE":
             exchange = XCFunctional(name="exchange",libxc_name  = "GGA_X_PBE")
             correlation = XCFunctional(name="correlation",libxc_name  = "GGA_C_PBE")
