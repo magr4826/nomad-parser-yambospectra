@@ -15,8 +15,10 @@ from nomad.parsing.parser import MatchingParser
 from nomad_simulations.schema_packages.general import Simulation, Program
 from nomad_simulations.schema_packages.numerical_settings import KMesh
 from nomad_simulations.schema_packages.variables import Variables, Frequency
+from nomad_simulations.schema_packages.model_system import AtomicCell, ModelSystem
 from nomad_parser_yambospectra.schema_packages.properties import Permittivity_OneAxis, myOutputs
 from nomad.parsing.file_parser import Quantity, TextParser, DataTextParser
+from nomad_simulations.schema_packages.atoms_state import AtomsState
 from nomad.units import ureg
 
 from nomad_simulations.schema_packages.model_method import ModelMethod, DFT
@@ -31,6 +33,7 @@ import os
 configuration = config.get_plugin_entry_point(
     'nomad_parser_yambospectra.parsers:parser_entry_point'
 )
+
 
 
 class epsilonInputParser(TextParser):
@@ -48,9 +51,22 @@ class epsilonInputParser(TextParser):
 class QEInputParser(TextParser):
     # we really only need the k-points from the input file,
     # as we can get the rest from the output file
+    # we still get some other stuff which is easier to parse here
 
     def init_quantities(self):
-        self._quantities = [Quantity("kpoints", r"K_POINTS crystal\n\d+\n([\d.\d+\s]*)"),]
+        self._quantities = [Quantity("kpoints", r"K_POINTS crystal\n\d+\n([\d.\d+\s]*)"),
+                            Quantity("atom_pos", r' *[A-Za-z]+ +(\d.\d+) (\d.\d+) (\d.\d+)',repeats=True),
+                            Quantity("atom_types", r' *([A-Za-z]+) +\d.\d+',repeats=True),]
+
+
+class QEOutputParser(TextParser):
+    # This is a selfbuilt output parser
+    def init_quantities(self):
+        self._quantities = [Quantity("lattice", r' *a\(\d\) \= \( *([\-\.\d]+) *([\-\.\d]+) *([\-\.\d]+)', repeats = True),
+                            Quantity("alat", r"\(alat\)\s*=\s*(\d+.\d+)")]
+
+
+
 
 
 
@@ -119,8 +135,32 @@ class NewParser(MatchingParser):
             my_qein = QEInputParser(mainfile=QE_input)
             kmesh = KMesh()
             kmesh.all_points = np.array(my_qein.get("kpoints")).reshape([-1,4])[:,:3]
-            print(kmesh.all_points)
 
         else:
-            print("No k-point data!")
+            print("No QE input file!! Cannot setup ModelSystem & DFT properties.")
+            return
+
+        for filename in all_files:
+            if "pw" in filename and "out" in filename:
+                QE_output = filename
+                break
+
+        if QE_output is not None:
+            my_qeout = QEOutputParser(mainfile=QE_output)
+        else:
+            print("No QE output file! Cannot setup ModelSystem & DFT properties.")
+            return
+
+        lattice_vecs = np.array(my_qeout.get("lattice"))* my_qeout.get("alat")
+
+        atoms_states = [AtomsState(chemical_symbol=element) for element in my_qein.get("atom_types")]
+        atomic_pos_crystal = my_qein.get("atom_pos")
+        atomic_pos_cart = np.array([np.matmul(crystal_pos,lattice_vecs) for crystal_pos in atomic_pos_crystal])* ureg("bohr")
+        cell = AtomicCell(lattice_vectors = lattice_vecs,atoms_state=atoms_states, positions=atomic_pos_cart)
+
+        modelsys = ModelSystem()
+        modelsys.cell.append(cell)
+        simulation.model_system.append(modelsys)
+
         print(simulation)
+        print(simulation.model_system)
