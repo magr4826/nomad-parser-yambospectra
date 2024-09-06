@@ -22,7 +22,7 @@ from nomad.parsing.file_parser import Quantity, TextParser, DataTextParser
 from nomad_simulations.schema_packages.atoms_state import AtomsState
 from nomad.units import ureg
 
-from nomad_simulations.schema_packages.model_method import ModelMethod, DFT
+from nomad_simulations.schema_packages.model_method import XCFunctional, DFT
 
 from nomad_parser_yambospectra.schema_packages.schema_package import RPA_Spectra, RPA_NumSettings
 
@@ -95,8 +95,8 @@ class QEOutputParser(TextParser):
     def init_quantities(self):
         self._quantities = [Quantity("lattice", r' *a\(\d\) \= \( *([\-\.\d]+) *([\-\.\d]+) *([\-\.\d]+)', repeats = True),
                             Quantity("alat", r"\(alat\)\s*=\s*(\d+.\d+)"),
-                            Quantity("pwcutoff", r"\s*kinetic-energy cutoff\s*=\s*(\d+.\d+)")]
-
+                            Quantity("pwcutoff", r"\s*kinetic-energy cutoff\s*=\s*(\d+.\d+)"),
+                            Quantity("xc_func", r"Exchange-correlation=\s(.*)\s")]
 
 
 class NewParser(MatchingParser):
@@ -164,10 +164,8 @@ class NewParser(MatchingParser):
         if len(QE_output) == 0:
             print("No QE output file!! Cannot setup ModelSystem & DFT properties.")
             return
-
         my_qeout = QEOutputParser()
         my_qeout.mainfile=QE_output[0]
-
 
         # setup the model system
 
@@ -188,4 +186,13 @@ class NewParser(MatchingParser):
         basis = PlaneWaveBasisSet()
         basis.cutoff_energy = my_qeout.get("pwcutoff")*ureg("rydbergs")
 
+        if my_qeout.get("xc_func") == "PBE":
+            exchange = XCFunctional(name="exchange",libxc_name  = "GGA_X_PBE")
+            correlation = XCFunctional(name="correlation",libxc_name  = "GGA_C_PBE")
+            dft.xc_functionals.append(exchange)
+            dft.xc_functionals.append(correlation)
+            dft.jacobs_ladder = "GGA"
+
         dft.numerical_settings.append(kmesh)
+        dft.numerical_settings.append(basis)
+        simulation.model_method.append(dft)
