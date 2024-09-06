@@ -169,11 +169,12 @@ class YAMBO_SpectraParser(MatchingParser):
 
         # setup the model system
 
-        lattice_vecs = np.array(my_qeout.get("lattice"))* my_qeout.get("alat")
+        lattice_vecs = np.array(my_qeout.get("lattice"))* my_qeout.get("alat")*ureg("bohr")
         atoms_states = [AtomsState(chemical_symbol=element) for element in my_qein.get("atom_types")]
         atomic_pos_crystal = my_qein.get("atom_pos")
         atomic_pos_cart = np.array([np.matmul(crystal_pos,lattice_vecs) for crystal_pos in atomic_pos_crystal])* ureg("bohr")
-        cell = AtomicCell(lattice_vectors = lattice_vecs,atoms_state=atoms_states, positions=atomic_pos_cart)
+        cell = AtomicCell(lattice_vectors = lattice_vecs,atoms_state=atoms_states, positions=atomic_pos_cart, periodic_boundary_conditions=[True, True, True])
+
 
         modelsys = ModelSystem()
         modelsys.cell.append(cell)
@@ -182,6 +183,7 @@ class YAMBO_SpectraParser(MatchingParser):
         # setup the DFT infos
         dft = DFT()
         kmesh = KMesh()
+        # the kmesh are unitless and in crystal points!!!!
         kmesh.all_points = np.array(my_qein.get("kpoints")).reshape([-1,4])[:,:3]
         basis = PlaneWaveBasisSet()
         basis.cutoff_energy = my_qeout.get("pwcutoff")*ureg("rydbergs")
