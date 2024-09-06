@@ -26,7 +26,7 @@ configuration = config.get_plugin_entry_point(
 
 m_package = SchemaPackage()
 
-
+"""
 class NewSchemaPackage(Schema):
     name = Quantity(
         type=str, a_eln=ELNAnnotation(component=ELNComponentEnum.StringEditQuantity)
@@ -38,7 +38,7 @@ class NewSchemaPackage(Schema):
 
         logger.info('NewSchema.normalize', parameter=configuration.parameter)
         self.message = f'Hello {self.name}!'
-
+"""
 
 class RPA_Spectra(ModelMethod):
     damping = Quantity(type = np.float64, unit="joule", description="Spectral Broadening",shape=[2])

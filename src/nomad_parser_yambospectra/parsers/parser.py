@@ -99,7 +99,7 @@ class QEOutputParser(TextParser):
                             Quantity("xc_func", r"Exchange-correlation=\s(.*)\s")]
 
 
-class NewParser(MatchingParser):
+class YAMBO_SpectraParser(MatchingParser):
     def parse(
         self,
         mainfile: str,
@@ -196,3 +196,5 @@ class NewParser(MatchingParser):
         dft.numerical_settings.append(kmesh)
         dft.numerical_settings.append(basis)
         simulation.model_method.append(dft)
+
+        print(simulation)
