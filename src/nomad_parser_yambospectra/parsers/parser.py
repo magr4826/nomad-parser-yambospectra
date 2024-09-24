@@ -10,27 +10,30 @@ if TYPE_CHECKING:
         BoundLogger,
     )
 
-from nomad.config import config
-from nomad.parsing.parser import MatchingParser
-from nomad_simulations.schema_packages.general import Simulation, Program
-from nomad_simulations.schema_packages.numerical_settings import KMesh, Smearing
-from nomad_simulations.schema_packages.basis_set import PlaneWaveBasisSet
-from nomad_simulations.schema_packages.variables import Variables, Frequency
-from nomad_simulations.schema_packages.model_system import AtomicCell, ModelSystem
-from nomad_parser_yambospectra.schema_packages.properties import Permittivity_OneAxis, myOutputs
-from nomad.parsing.file_parser import Quantity, TextParser, DataTextParser
-from nomad_simulations.schema_packages.atoms_state import AtomsState
-from nomad.units import ureg
-
-from nomad_simulations.schema_packages.model_method import XCFunctional, DFT
-
-from nomad_parser_yambospectra.schema_packages.schema_package import RPA_Spectra, RPA_NumSettings
-
-from nomad.datamodel.metainfo.workflow import Workflow
+import glob
+import os
 
 import numpy as np
-import os
-import glob
+from nomad.config import config
+from nomad.parsing.file_parser import DataTextParser, Quantity, TextParser
+from nomad.parsing.parser import MatchingParser
+from nomad.units import ureg
+from nomad_simulations.schema_packages.atoms_state import AtomsState
+from nomad_simulations.schema_packages.basis_set import PlaneWaveBasisSet
+from nomad_simulations.schema_packages.general import Program, Simulation
+from nomad_simulations.schema_packages.model_method import DFT, XCFunctional
+from nomad_simulations.schema_packages.model_system import AtomicCell, ModelSystem
+from nomad_simulations.schema_packages.numerical_settings import KMesh
+from nomad_simulations.schema_packages.variables import Frequency
+
+from nomad_parser_yambospectra.schema_packages.properties import (
+    PermittivityOneAxis,
+    YAMBOSpectraOutputs,
+)
+from nomad_parser_yambospectra.schema_packages.schema_package import (
+    RPANumericalSettings,
+    RPASpectra,
+)
 
 configuration = config.get_plugin_entry_point(
     'nomad_parser_yambospectra.parsers:parser_entry_point'
@@ -70,14 +73,20 @@ def get_files(pattern: str, filepath: str, stripname: str = '', deep: bool = Tru
 class epsilonInputParser(TextParser):
     def init_quantities(self):
         self._quantities = [
-            Quantity("Damping", r"% DmRngeXd\s*\n# \|\s*(\d+\.\d+)\s*\|\s*(\d+\.\d+)"),
-            Quantity("EnergyRange", r"% EnRngeXd\s*\n# \|\s*(\d+\.\d+)\s*\|\s*(\d+\.\d+)"),
-            Quantity("BandRange", r"% BndsRnXd\s*\n# \|\s*(\d+)\s*\|\s*(\d+)"),
-            Quantity("Direction", r"% LongDrXd\s*\n# \|\s*(\d+\.\d+)\s*\|\s*(\d+\.\d+)\s*\|\s*(\d+\.\d+)"),
-            Quantity("NumberOfFreqs", r"ETStpsXd=\s*(\d+)"),
-            Quantity("FFTVecs", r"FFTGvecs=\s*(\d+)"),
-            Quantity("GVec_Cutoff", r"NGsBlkXd=\s*(\d+)"),
+            Quantity('Damping', r'% DmRngeXd\s*\n# \|\s*(\d+\.\d+)\s*\|\s*(\d+\.\d+)'),
+            Quantity(
+                'EnergyRange', r'% EnRngeXd\s*\n# \|\s*(\d+\.\d+)\s*\|\s*(\d+\.\d+)'
+            ),
+            Quantity('BandRange', r'% BndsRnXd\s*\n# \|\s*(\d+)\s*\|\s*(\d+)'),
+            Quantity(
+                'Direction',
+                r'% LongDrXd\s*\n# \|\s*(\d+\.\d+)\s*\|\s*(\d+\.\d+)\s*\|\s*(\d+\.\d+)',
+            ),
+            Quantity('NumberOfFreqs', r'ETStpsXd=\s*(\d+)'),
+            Quantity('FFTVecs', r'FFTGvecs=\s*(\d+)'),
+            Quantity('GVec_Cutoff', r'NGsBlkXd=\s*(\d+)'),
         ]
+
 
 class QEInputParser(TextParser):
     # we really only need the k-points from the input file,
@@ -85,21 +94,31 @@ class QEInputParser(TextParser):
     # we still get some other stuff which is easier to parse here
 
     def init_quantities(self):
-        self._quantities = [Quantity("kpoints", r"K_POINTS crystal\n\d+\n([\d.\d+\s]*)"),
-                            Quantity("atom_pos", r' *[A-Za-z]+ +(\d.\d+) (\d.\d+) (\d.\d+)',repeats=True),
-                            Quantity("atom_types", r' *([A-Za-z]+) +\d.\d+',repeats=True),]
+        self._quantities = [
+            Quantity('kpoints', r'K_POINTS crystal\n\d+\n([\d.\d+\s]*)'),
+            Quantity(
+                'atom_pos', r' *[A-Za-z]+ +(\d.\d+) (\d.\d+) (\d.\d+)', repeats=True
+            ),
+            Quantity('atom_types', r' *([A-Za-z]+) +\d.\d+', repeats=True),
+        ]
 
 
 class QEOutputParser(TextParser):
     # This is a selfbuilt output parser
     def init_quantities(self):
-        self._quantities = [Quantity("lattice", r' *a\(\d\) \= \( *([\-\.\d]+) *([\-\.\d]+) *([\-\.\d]+)', repeats = True),
-                            Quantity("alat", r"\(alat\)\s*=\s*(\d+.\d+)"),
-                            Quantity("pwcutoff", r"\s*kinetic-energy cutoff\s*=\s*(\d+.\d+)"),
-                            Quantity("xc_func", r"Exchange-correlation=\s(.*)\s")]
+        self._quantities = [
+            Quantity(
+                'lattice',
+                r' *a\(\d\) \= \( *([\-\.\d]+) *([\-\.\d]+) *([\-\.\d]+)',
+                repeats=True,
+            ),
+            Quantity('alat', r'\(alat\)\s*=\s*(\d+.\d+)'),
+            Quantity('pwcutoff', r'\s*kinetic-energy cutoff\s*=\s*(\d+.\d+)'),
+            Quantity('xc_func', r'Exchange-correlation=\s(.*)\s'),
+        ]
 
 
-class YAMBO_SpectraParser(MatchingParser):
+class YAMBOSpectraParser(MatchingParser):
     def parse(
         self,
         mainfile: str,
@@ -110,8 +129,7 @@ class YAMBO_SpectraParser(MatchingParser):
         simulation = Simulation()
         archive.data = simulation
 
-
-        program = Program(name="YAMBO")
+        program = Program(name='YAMBO')
         simulation.program = program
 
         # parse the input properties
@@ -119,62 +137,73 @@ class YAMBO_SpectraParser(MatchingParser):
         my_eps.mainfile = mainfile
         my_eps.logger = logger
 
-
         # store the input variables in the schema
-        rpa = RPA_Spectra()
-        rpa.damping = my_eps.get("Damping") * ureg("eV")
-        rpa.energy_range = my_eps.get("EnergyRange")
-        rpa.direction = my_eps.get("Direction")
-        rpa.numberOfFreqs = my_eps.get("NumberOfFreqs")
+        rpa = RPASpectra()
+        rpa.damping = my_eps.get('Damping') * ureg('eV')
+        rpa.energy_range = my_eps.get('EnergyRange')
+        rpa.direction = my_eps.get('Direction')
+        rpa.n_frequencies = my_eps.get('NumberOfFreqs')
 
-        rpa_settings = RPA_NumSettings()
-        rpa_settings.band_range = my_eps.get("BandRange")
-        rpa_settings.FFTVecs = my_eps.get("FFTVecs")
-        rpa_settings.GVecs = my_eps.get("GVec_Cutoff") * 1e-3* ureg("rydberg")
+        rpa_settings = RPANumericalSettings()
+        rpa_settings.bands_range = my_eps.get('BandRange')
+        rpa_settings.FFTVecs = my_eps.get('FFTVecs')
+        rpa_settings.g_vectors_screening = (
+            my_eps.get('GVec_Cutoff') * 1e-3 * ureg('rydberg')
+        )
         rpa.numerical_settings.append(rpa_settings)
         simulation.model_method.append(rpa)
 
         # parse the output properties
-        output_parsed = DataTextParser(mainfile=mainfile,dtype=np.float32)
-        freqs = output_parsed.data[:,0]
-        epsI = output_parsed.data[:,1]
-        epsR = output_parsed.data[:,2]
+        output_parsed = DataTextParser(mainfile=mainfile, dtype=np.float32)
+        freqs = output_parsed.data[:, 0]
+        epsI = output_parsed.data[:, 1]
+        epsR = output_parsed.data[:, 2]
 
         # store the output properties
-        freqs_nomad = Frequency(points = freqs * ureg("eV"))
+        freqs_nomad = Frequency(points=freqs * ureg('eV'))
 
-        perm = Permittivity_OneAxis()
+        perm = PermittivityOneAxis()
         perm.variables.append(freqs_nomad)
-        perm.value = (epsR + 1j*epsI).reshape([-1,1,1])
-        output = myOutputs()
-        output.permittivity_oneaxis.append(perm)
+        perm.value = (epsR + 1j * epsI).reshape([-1, 1, 1])
+        output = YAMBOSpectraOutputs()
+        output.permittivities_one_axis.append(perm)
         simulation.outputs.append(output)
 
         # this concludes the YAMBO part
         # we get the model system and the ground-state parameters from the QE files
 
-        QE_input = get_files("pw_*.in", filepath=mainfile)
+        QE_input = get_files('pw_*.in', filepath=mainfile)
         if len(QE_input) == 0:
-            print("No QE input file!! Cannot setup ModelSystem & DFT properties.")
+            print('No QE input file!! Cannot setup ModelSystem & DFT properties.')
             return
         my_qein = QEInputParser()
         my_qein.mainfile = QE_input[0]
 
-        QE_output = get_files("pw_*.out", filepath=mainfile)
+        QE_output = get_files('pw_*.out', filepath=mainfile)
         if len(QE_output) == 0:
-            print("No QE output file!! Cannot setup ModelSystem & DFT properties.")
+            print('No QE output file!! Cannot setup ModelSystem & DFT properties.')
             return
         my_qeout = QEOutputParser()
-        my_qeout.mainfile=QE_output[0]
+        my_qeout.mainfile = QE_output[0]
 
         # setup the model system
 
-        lattice_vecs = np.array(my_qeout.get("lattice"))* my_qeout.get("alat")*ureg("bohr")
-        atoms_states = [AtomsState(chemical_symbol=element) for element in my_qein.get("atom_types")]
-        atomic_pos_crystal = my_qein.get("atom_pos")
-        atomic_pos_cart = np.array([np.matmul(crystal_pos,lattice_vecs) for crystal_pos in atomic_pos_crystal])* ureg("bohr")
-        cell = AtomicCell(lattice_vectors = lattice_vecs,atoms_state=atoms_states, positions=atomic_pos_cart, periodic_boundary_conditions=[True, True, True])
-
+        lattice_vecs = (
+            np.array(my_qeout.get('lattice')) * my_qeout.get('alat') * ureg('bohr')
+        )
+        atoms_states = [
+            AtomsState(chemical_symbol=element) for element in my_qein.get('atom_types')
+        ]
+        atomic_pos_crystal = my_qein.get('atom_pos')
+        atomic_pos_cart = np.array(
+            [np.matmul(crystal_pos, lattice_vecs) for crystal_pos in atomic_pos_crystal]
+        ) * ureg('bohr')
+        cell = AtomicCell(
+            lattice_vectors=lattice_vecs,
+            atoms_state=atoms_states,
+            positions=atomic_pos_cart,
+            periodic_boundary_conditions=[True, True, True],
+        )
 
         modelsys = ModelSystem()
         modelsys.cell.append(cell)
@@ -184,20 +213,19 @@ class YAMBO_SpectraParser(MatchingParser):
         dft = DFT()
         kmesh = KMesh()
         # the kmesh are unitless and in crystal points!!!!
-        kmesh.all_points = np.array(my_qein.get("kpoints")).reshape([-1,4])[:,:3]
+        kmesh.all_points = np.array(my_qein.get('kpoints')).reshape([-1, 4])[:, :3]
         basis = PlaneWaveBasisSet()
-        basis.cutoff_energy = my_qeout.get("pwcutoff")*ureg("rydbergs")
+        # ! this should coincide with `RPASpectraNumericalSettings.g_vectors_screening`
+        basis.cutoff_energy = my_qeout.get('pwcutoff') * ureg('rydbergs')
 
         # this is extremely scuffed, the QE parser will in the future take care of this
-        if my_qeout.get("xc_func") == "PBE":
-            exchange = XCFunctional(name="exchange",libxc_name  = "GGA_X_PBE")
-            correlation = XCFunctional(name="correlation",libxc_name  = "GGA_C_PBE")
+        if my_qeout.get('xc_func') == 'PBE':
+            exchange = XCFunctional(name='exchange', libxc_name='GGA_X_PBE')
+            correlation = XCFunctional(name='correlation', libxc_name='GGA_C_PBE')
             dft.xc_functionals.append(exchange)
             dft.xc_functionals.append(correlation)
-            dft.jacobs_ladder = "GGA"
+            dft.jacobs_ladder = 'GGA'
 
         dft.numerical_settings.append(kmesh)
         dft.numerical_settings.append(basis)
         simulation.model_method.append(dft)
-
-        print(simulation)
