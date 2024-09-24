@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import numpy as np
 from nomad.metainfo import MEnum, Quantity
@@ -8,18 +8,18 @@ if TYPE_CHECKING:
     from nomad.metainfo import Context, Section
     from structlog.stdlib import BoundLogger
 
-from nomad_simulations.schema_packages.physical_property import PhysicalProperty
-from nomad_simulations.schema_packages.properties.spectral_profile import (
-    AbsorptionSpectrum,
-)
-from nomad_simulations.schema_packages.utils import get_variables
-from nomad_simulations.schema_packages.variables import Frequency, KMesh
+from nomad.metainfo import SubSection
 from nomad_simulations.schema_packages.outputs import Outputs
-from nomad.metainfo import  SubSection
+from nomad_simulations.schema_packages.physical_property import PhysicalProperty
+from nomad_simulations.schema_packages.utils import get_variables
+from nomad_simulations.schema_packages.variables import Frequency
 
-class Permittivity_OneAxis(PhysicalProperty):
+
+# ? Cannot be inheriting from `Permittivity`? Now I am seeing you copy-pasted parts in the class, so I'll argue that yes, it is better to inherit from `Permittivity`
+# ? and build on top of it.
+class PermittivityOneAxis(PhysicalProperty):
     """
-    Response of the material to polarize in the presence of an electric field.
+    Response of the material to polarize in the presence of an electric field in one of the principal directions of the polarization.
 
     Alternative names: `DielectricFunction`.
     """
@@ -37,20 +37,17 @@ class Permittivity_OneAxis(PhysicalProperty):
         type=np.complex128,
         # unit='joule',  # TODO check units (they have to match `SpectralProfile.value`)
         description="""
-        Value of the permittivity tensor. If the value does not depend on the scattering vector `q`, then we
-        can extract the optical absorption spectrum from the imaginary part of the permittivity tensor (this is also called
-        macroscopic dielectric function).
+        Value of the permittivity. If the value does not depend on the scattering vector `q`, then we
+        can extract the optical absorption spectrum from the imaginary part of the permittivity tensor.
         """,
     )
-
-    # ? We need use cases to understand if we need to define contributions to the permittivity tensor.
-    # ? `ionic` and `electronic` contributions are common in the literature.
 
     def __init__(
         self, m_def: 'Section' = None, m_context: 'Context' = None, **kwargs
     ) -> None:
         super().__init__(m_def, m_context, **kwargs)
-        self.rank = [1,1]
+        # ! no need to define rank if the property is an scalar (self.rank should be empty, [], which is the default value)
+        # self.rank = [1, 1]
         self.name = self.m_def.name
 
     def resolve_type(self) -> str:
@@ -107,6 +104,7 @@ class Permittivity_OneAxis(PhysicalProperty):
         """
 
 
-class myOutputs(Outputs):
-    permittivity_oneaxis = SubSection(sub_section=Permittivity_OneAxis.m_def, repeats=True)
-
+class YAMBOSpectraOutputs(Outputs):
+    permittivities_one_axis = SubSection(
+        sub_section=PermittivityOneAxis.m_def, repeats=True
+    )
