@@ -1,6 +1,7 @@
 import logging
 
 from nomad.datamodel import EntryArchive
+
 from nomad_parser_yambospectra.parsers.parser import NewParser
 
 
