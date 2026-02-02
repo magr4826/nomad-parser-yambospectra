@@ -1,2 +1,1 @@
-recursive-include * nomad_plugin.yaml
 graft src/nomad_parser_yambospectra/example_uploads

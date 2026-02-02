@@ -1,0 +1,19 @@
+diff a/src/nomad_parser_yambospectra/parsers/parser.py b/src/nomad_parser_yambospectra/parsers/parser.py	(rejected hunks)
+@@ -11,9 +11,8 @@ if TYPE_CHECKING:
+     )
+ 
+ from nomad.config import config
+-from nomad.parsing.parser import MatchingParser
+-
+ from nomad.datamodel.metainfo.workflow import Workflow
++from nomad.parsing.parser import MatchingParser
+ 
+ configuration = config.get_plugin_entry_point(
+     'nomad_parser_yambospectra.parsers:parser_entry_point'
+@@ -30,4 +29,4 @@ class NewParser(MatchingParser):
+     ) -> None:
+         logger.info('NewParser.parse', parameter=configuration.parameter)
+ 
+-        archive.workflow2 = Workflow(name='test')
+\ No newline at end of file
++        archive.workflow2 = Workflow(name='test')
